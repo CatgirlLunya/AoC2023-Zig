@@ -19,17 +19,6 @@ pub fn build(b: *Build) void {
     const install_all = b.step("install_all", "Install all days");
     const run_all = b.step("run_all", "Run all days");
 
-    const generate = b.step("generate", "Generate stub files from template/template.zig");
-    const build_generate = b.addExecutable(.{
-        .name = "generate",
-        .root_source_file = .{ .path = "template/generate.zig" },
-        .optimize = .ReleaseSafe,
-    });
-
-    const run_generate = b.addRunArtifact(build_generate);
-    run_generate.setCwd(.{ .path = std.fs.path.dirname(@src().file).? });
-    generate.dependOn(&run_generate.step);
-
     // Set up an exe for each day
     var day: u32 = 1;
     while (day <= 25) : (day += 1) {
@@ -79,6 +68,12 @@ pub fn build(b: *Build) void {
         const run_step = b.step(dayString, run_desc);
         run_step.dependOn(&run_cmd.step);
         run_all.dependOn(&run_cmd.step);
+
+        const time = std.time.epoch.EpochSeconds{ .secs = @as(u64, @intCast(std.time.timestamp())) };
+        if (time.getEpochDay().calculateYearDay().calculateMonthDay().day_index + 1 == day) {
+            const run = b.step("run", "Run the current day's solution");
+            run.dependOn(&run_cmd.step);
+        }
     }
 
     // Set up tests for util.zig
