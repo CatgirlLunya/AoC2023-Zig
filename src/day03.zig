@@ -5,16 +5,6 @@ fn getXY(x: usize, y: usize, lineSize: usize) usize {
     return x + y * (lineSize + 1);
 }
 
-fn parseInt(x: usize, y: usize, data: []const u8, lineSize: usize) !usize {
-    var dx: usize = 0;
-    while (data[getXY(x + dx, y, lineSize)] >= '0' and data[getXY(x + dx, y, lineSize)] <= '9') {
-        dx += 1;
-    }
-
-    const start = getXY(x, y, lineSize);
-    return std.fmt.parseInt(usize, data[start .. start + dx], 10);
-}
-
 fn solution1(data: []const u8) usize {
     const lineSize = std.mem.indexOf(u8, data, "\n").?;
     const lines = std.mem.count(u8, data, "\n") + 1;
@@ -24,7 +14,8 @@ fn solution1(data: []const u8) usize {
     for (0..lines) |y| {
         var x: usize = 0;
         while (x < lineSize) : (x += 1) {
-            const number = parseInt(x, y, data, lineSize) catch continue;
+            var parser = std.fmt.Parser{ .buf = data[getXY(x, y, lineSize)..] };
+            const number = parser.number() orelse continue;
             const numberSize = std.math.log10_int(number) + 1;
             defer x += numberSize - 1; // Advance to end of number, while loop will add 1 more
 
@@ -53,17 +44,21 @@ fn solution2(data: []const u8) !usize {
         x: usize,
         y: usize,
     };
+    const Value = struct {
+        val: usize = 1,
+        amount: usize = 0,
+    };
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
-    const map_type = std.AutoHashMap(Point, *std.ArrayList(usize));
-    var map = map_type.init(arena.allocator());
+    var map = std.AutoHashMap(Point, Value).init(gpa.allocator());
 
     const lineSize = std.mem.indexOf(u8, data, "\n").?;
     const lines = std.mem.count(u8, data, "\n") + 1;
     for (0..lines) |y| {
         var x: usize = 0;
         while (x < lineSize) : (x += 1) {
-            const number = parseInt(x, y, data, lineSize) catch continue;
+            var parser = std.fmt.Parser{ .buf = data[getXY(x, y, lineSize)..] };
+            const number = parser.number() orelse continue;
             const numberSize = std.math.log10_int(number) + 1;
             defer x += numberSize - 1; // Advance to end of number, while loop will add 1 more
 
@@ -79,12 +74,11 @@ fn solution2(data: []const u8) !usize {
                             .y = checky,
                         };
                         if (map.get(point) == null) {
-                            const list = try arena.allocator().create(std.ArrayList(usize));
-                            list.* = std.ArrayList(usize).init(arena.allocator());
-                            try map.put(point, list);
+                            try map.put(point, .{});
                         }
-                        var list = map.get(point).?;
-                        try list.append(number);
+                        var ptr = map.getPtr(point).?;
+                        ptr.val *= number;
+                        ptr.amount += 1;
                     }
                 }
             }
@@ -94,16 +88,12 @@ fn solution2(data: []const u8) !usize {
     var solution: usize = 0;
     var iterator = map.valueIterator();
     while (iterator.next()) |entry| {
-        if (entry.*.items.len >= 2) {
-            solution += blk: {
-                var prod: usize = 1;
-                for (entry.*.items) |item| prod *= item;
-                break :blk prod;
-            };
+        if (entry.amount >= 2) {
+            solution += entry.val;
         }
     }
 
-    arena.deinit();
+    map.deinit();
     if (gpa.deinit() != .ok) {
         return error.Leaked;
     }
