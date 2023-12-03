@@ -11,15 +11,15 @@ const Game = struct {
 
 fn parseRow(row: []const u8) !Game {
     var splitRow = mem.splitBackwardsSequence(u8, row, ": ");
-    var colors = splitRow.first();
+    const colors = splitRow.first();
     var pulls = mem.splitSequence(u8, colors, "; ");
     var game: Game = .{};
     while (pulls.next()) |pull| {
         var pullIterator = mem.splitSequence(u8, pull, ", ");
         while (pullIterator.next()) |color| {
             var colorSplit = mem.splitAny(u8, color, " ");
-            var number = try std.fmt.parseInt(u32, colorSplit.next().?, 10);
-            var col = colorSplit.next().?;
+            const number = try std.fmt.parseInt(u32, colorSplit.next().?, 10);
+            const col = colorSplit.next().?;
             if (std.mem.eql(u8, col, "red") and game.red < number) game.red = number;
             if (std.mem.eql(u8, col, "green") and game.green < number) game.green = number;
             if (std.mem.eql(u8, col, "blue") and game.blue < number) game.blue = number;
