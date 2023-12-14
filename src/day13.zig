@@ -1,5 +1,5 @@
 const std = @import("std");
-const data = @embedFile("data/day13test.txt");
+const data = @embedFile("data/day13.txt");
 
 fn arrays_equal(a: []const []const u8, b: [][]const u8) bool {
     std.mem.reverse([]const u8, b);
@@ -11,11 +11,7 @@ fn arrays_equal(a: []const []const u8, b: [][]const u8) bool {
     return true;
 }
 
-// Detect if any n..end range is symmetrical about (end - n)/2
-// Or any 0..n range is symmetrical about n/2
 fn horizontalSymmetry(allocator: std.mem.Allocator, grid: []const u8, optional: ?usize) !?usize {
-    _ = optional;
-
     const line_count = std.mem.count(u8, grid, "\n");
     _ = line_count;
     var split = std.mem.splitScalar(u8, grid, '\n');
@@ -26,37 +22,22 @@ fn horizontalSymmetry(allocator: std.mem.Allocator, grid: []const u8, optional: 
         try lines.append(line);
     }
 
-    var max_pos: usize = 0;
-    for (0..lines.items.len - 1) |n| {
-        const pos = (lines.items.len - n) / 2 + n;
-        if (arrays_equal(lines.items[n..pos], lines.items[pos..lines.items.len])) {
-            std.log.info("N: {}, POS: {}, MAX: {}", .{ n, pos, lines.items.len });
-            if (pos > max_pos) {
-                // if (optional) |op| {
-                //     if (op != pos) max_pos = pos;
-                // } else {
-                max_pos = pos;
-                // }
-            }
-        }
-    }
-    var max_pos2: usize = 0;
     for (2..lines.items.len) |n| {
         const pos = n / 2;
+        if (optional != null and pos == optional.?) continue;
         if (arrays_equal(lines.items[0..pos], lines.items[pos..n])) {
             std.log.info("N: {}, POS: {}, MAX: {}", .{ n, pos, lines.items.len });
-            if (pos > max_pos2) {
-                // if (optional) |op| {
-                //     if (op != pos) max_pos2 = pos;
-                // } else {
-                max_pos2 = pos;
-                // }
-            }
+            return pos;
         }
     }
-    if (max_pos > max_pos2) return max_pos;
-    if (max_pos2 > max_pos) return max_pos2;
-    if (max_pos2 != 0) return max_pos2;
+
+    for (0..lines.items.len - 1) |n| {
+        const pos = (lines.items.len - n) / 2 + n;
+        if (optional != null and pos == optional.?) continue;
+        if (arrays_equal(lines.items[n..pos], lines.items[pos..lines.items.len])) {
+            return pos;
+        }
+    }
 
     return null;
 }
@@ -144,17 +125,16 @@ fn solution2(allocator: std.mem.Allocator) !usize {
             } else {
                 continue;
             }
-            // if (line_map.horizontal or none) {
-            if (try horizontalSymmetry(allocator, mut_grid, if (none) null else line_map.linen)) |hs| {
+            const hopt = if (!none and line_map.horizontal) line_map.linen else null;
+            const vopt = if (!none and !line_map.horizontal) line_map.linen else null;
+            if (try horizontalSymmetry(allocator, mut_grid, hopt)) |hs| {
                 count += hs * 100;
                 break;
             }
-            // } else if (!line_map.horizontal or none) {
-            if (try verticalSymmetry(allocator, mut_grid, if (none) null else line_map.linen)) |vs| {
+            if (try verticalSymmetry(allocator, mut_grid, vopt)) |vs| {
                 count += vs;
                 break;
             }
-            // }
         }
     }
     return count;

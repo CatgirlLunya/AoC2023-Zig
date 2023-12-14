@@ -78,7 +78,40 @@ fn setbit(number: usize, index: u6, value: bool) usize {
     return number;
 }
 
+const Config = struct {
+    arr: []const usize,
+    choose: usize,
+};
+
+const Context = struct {
+    pub fn hash(self: Context, config: Config) u64 {
+        _ = self;
+        var hashed: u64 = 0;
+        for (config.arr) |i| {
+            hashed *%= i;
+        }
+        hashed *%= config.choose;
+        return hashed;
+    }
+
+    pub fn eql(self: Context, config: Config, config2: Config) bool {
+        _ = self;
+        return std.mem.eql(usize, config.arr, config2.arr) and config.choose == config2.choose;
+    }
+};
+
+const perms_cache_type = std.HashMap(Config, std.ArrayList([]usize), Context, 80);
+
+var cache: perms_cache_type = undefined;
+
 fn gen_perms(allocator: std.mem.Allocator, arr: []const usize, choose: usize) !std.ArrayList([]usize) {
+    const conf = Config{
+        .arr = arr,
+        .choose = choose,
+    };
+    if (cache.get(conf)) |v| {
+        return v;
+    }
     var perms = std.ArrayList([]usize).init(allocator);
     var bin: usize = 0;
     const max_bits = arr.len;
@@ -102,6 +135,7 @@ fn gen_perms(allocator: std.mem.Allocator, arr: []const usize, choose: usize) !s
             try perms.append(list);
         }
     }
+    try cache.put(conf, try perms.clone());
 
     return perms;
 }
@@ -138,7 +172,8 @@ pub fn solve(allocator: std.mem.Allocator, line: []const u8) !usize {
     }
 
     // Question positions and expected numbers given,
-    for (0..springs.items.len) |spring_count| {
+    const min = expected.items.len - std.mem.count(u8, spring_l, "#");
+    for (min..springs.items.len) |spring_count| {
         var perms = try gen_perms(allocator, springs.items, spring_count + 1);
         defer {
             for (perms.items) |p| {
@@ -169,11 +204,20 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
+    cache = perms_cache_type.init(allocator);
+    defer {
+        var it = cache.valueIterator();
+        while (it.next()) |i| {
+            i.deinit();
+        }
+    }
+    defer cache.deinit();
+
     var lines = std.mem.splitScalar(u8, data, '\n');
     var count: usize = 0;
     var count2: usize = 0;
     while (lines.next()) |line| {
-        count += solve(allocator, line);
+        count += try solve(allocator, line);
         var cloned_line = try allocator.alloc(u8, line.len * 5 + 4);
         defer allocator.free(cloned_line);
         var split = std.mem.splitScalar(u8, line, ' ');
